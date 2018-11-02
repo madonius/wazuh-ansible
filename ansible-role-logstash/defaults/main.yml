@@ -2,8 +2,9 @@
 logstash_create_config: true
 logstash_input_beats: false
 
-elasticsearch_network_host: "127.0.0.1"
-elasticsearch_http_port: "9200"
+elasticsearch_network_hosts: 
+  - host: "127.0.0.1"
+    http_port: "9200"
 elasticsearch_shards: 5
 elasticsearch_replicas: 1
 elastic_stack_version: 6.4.0
