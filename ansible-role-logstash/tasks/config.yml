@@ -25,3 +25,12 @@
     group: root
   notify: restart logstash
   tags: configure
+
+- name: Populate elasticsearch_network_hosts list if elasticsearch_network_host is defined
+  set_fact:
+    elasticsearch_network_hosts:
+      - host: "{{ elasticsearch_network_host }}"
+        http_port: "{{ elasticsearch_http_port }}"
+  when:
+  - elasticsearch_network_host is defined
+  - elasticsearch_http_port is defined
