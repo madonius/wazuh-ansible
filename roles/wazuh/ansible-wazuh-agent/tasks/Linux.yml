@@ -5,10 +5,6 @@
 - include_tasks: "Debian.yml"
   when: ansible_os_family == "Debian"
 
-- include_tasks: "installation_from_sources.yml"
-  when:
-    - wazuh_agent_sources_installation.enabled
-
 - include_tasks: "installation_from_custom_packages.yml"
   when:
     - wazuh_custom_packages_installation_agent_enabled
@@ -20,19 +16,17 @@
     lock_timeout: '{{ wazuh_agent_yum_lock_timeout }}'
   when:
     - ansible_os_family|lower == "redhat"
-    - not wazuh_agent_sources_installation.enabled
     - not wazuh_custom_packages_installation_agent_enabled
   tags:
     - init
 
 - name: Linux Debian | Install wazuh-agent
   apt:
-    name: "wazuh-agent={{ wazuh_agent_version }}"
+    name: "wazuh-agent={{ wazuh_agent_version }}-*"
     state: present
     cache_valid_time: 3600
   when:
     - ansible_os_family|lower != "redhat"
-    - not wazuh_agent_sources_installation.enabled
     - not wazuh_custom_packages_installation_agent_enabled
     - not ansible_check_mode
   tags:
@@ -125,7 +119,7 @@
     - name: Linux | Obtain JWT Token
       uri:
         url: '{{ target_manager.api_proto }}://{{ target_manager.address }}:{{ target_manager.api_port }}/security/user/authenticate'
-        method: GET
+        method: POST
         url_username: '{{ target_manager.api_user }}'
         url_password: '{{ api_pass }}'
         status_code: 200
@@ -218,6 +212,11 @@
     msg: Agent registration will be performed through enrollment option in templated ossec.conf
   when:  wazuh_agent_config.enrollment.enabled == 'yes'
 
+- name: Linux | Ensure group "wazuh" exists
+  ansible.builtin.group:
+    name: wazuh
+    state: present
+
 - name: Linux | Installing agent configuration (ossec.conf)
   template:
     src: var-ossec-etc-ossec-agent.conf.j2
@@ -266,9 +265,7 @@
 - include_tasks: "RMRedHat.yml"
   when:
     - ansible_os_family == "RedHat"
-    - not wazuh_agent_sources_installation.enabled
 
 - include_tasks: "RMDebian.yml"
   when:
     - ansible_os_family == "Debian"
-    - not wazuh_agent_sources_installation.enabled

@@ -1,5 +1,50 @@
 ---
 
+- name: "Install dependencies"
+  block:
+    - name: "Install common dependencies"
+      package:
+        name:
+          - unzip
+          - openssl
+          - tar
+        state: present
+      register: package_status
+      until: "package_status is not failed"  
+      retries: 10
+      delay: 10
+
+    - name: "Install curl"
+      package:
+        name: curl
+        state: present
+      when: ansible_distribution != "Amazon" and ansible_distribution_version != "2023"
+      register: package_status
+      until: "package_status is not failed"  
+      retries: 10
+      delay: 10
+
+    - name: "Install curl minimal in AL2023"
+      package:
+        name: curl-minimal
+        state: present
+      when: ansible_distribution == "Amazon" and ansible_distribution_version == "2023"
+      register: package_status
+      until: "package_status is not failed"  
+      retries: 10
+      delay: 10
+
+- include_vars: ../../vars/repo_vars.yml
+
+- include_vars: ../../vars/repo.yml
+  when: packages_repository == 'production'
+
+- include_vars: ../../vars/repo_pre-release.yml
+  when: packages_repository == 'pre-release'
+
+- include_vars: ../../vars/repo_staging.yml
+  when: packages_repository == 'staging'
+
 - name: Overlay wazuh_manager_config on top of defaults
   set_fact:
     wazuh_manager_config: '{{ wazuh_manager_config_defaults | combine(config_layer, recursive=True) }}'
@@ -7,26 +52,35 @@
     config_layer: '{{ wazuh_manager_config | default({}) }}'
   when: wazuh_manager_config_overlay | bool
 
-- name: "Install dependencies"
-  package:
-    name:
-      - unzip
-      - openssl
-      - tar
-    state: present
-
 - include_tasks: "RedHat.yml"
   when: (ansible_os_family == "RedHat" and ansible_distribution_major_version|int > 5) or (ansible_os_family  == "RedHat" and ansible_distribution == "Amazon")
 
 - include_tasks: "Debian.yml"
   when: ansible_os_family == "Debian"
 
+- name: Generate the wazuh-keystore (username)
+  shell: >
+    /var/ossec/bin/wazuh-keystore -f indexer -k username -v {{ indexer_security_user }}
+  notify: restart wazuh-manager
+  tags:
+    - init
+    - config
+
+- name: Generate the wazuh-keystore (password)
+  shell: >
+    /var/ossec/bin/wazuh-keystore -f indexer -k password -v {{ indexer_security_password }}
+  notify: restart wazuh-manager
+  tags:
+    - init
+    - config
+  
 - name: Install expect
   package:
     name: expect
     state: "{{ wazuh_manager_package_state }}"
   when:
-    - not (ansible_os_family|lower == "redhat" and ansible_distribution_major_version|int < 6)
+    - not (ansible_os_family|lower == "redhat" and ansible_distribution_major_version|int < 6) and
+      not (ansible_distribution|lower == "centos" and ansible_distribution_major_version|int == 8)
   tags: init
 
 - name: Generate SSL files for authd
@@ -83,7 +137,7 @@
             dest="{{ wazuh_dir }}/etc/rules/local_rules.xml"
             owner=wazuh
             group=wazuh
-            mode=0640
+            mode=0660
   notify: restart wazuh-manager
   tags:
     - init
@@ -95,7 +149,7 @@
         dest="{{ wazuh_dir }}/etc/rules/"
         owner=wazuh
         group=wazuh
-        mode=0640
+        mode=0660
   notify: restart wazuh-manager
   tags:
     - init
@@ -107,7 +161,7 @@
             dest="{{ wazuh_dir }}/etc/decoders/local_decoder.xml"
             owner=wazuh
             group=wazuh
-            mode=0640
+            mode=0660
   notify: restart wazuh-manager
   tags:
     - init
@@ -119,7 +173,7 @@
         dest="{{ wazuh_dir }}/etc/decoders/"
         owner=wazuh
         group=wazuh
-        mode=0640
+        mode=0660
   notify: restart wazuh-manager
   tags:
     - init
@@ -132,7 +186,7 @@
     dest: "{{ wazuh_dir }}/etc/shared/default/agent.conf"
     owner: wazuh
     group: wazuh
-    mode: 0640
+    mode: 0660
     validate: "{{ wazuh_dir }}/bin/verify-agent-conf -f %s"
   notify: restart wazuh-manager
   tags:
@@ -260,6 +314,15 @@
         group: wazuh
         mode: 0644
 
+    - name: Create admin.json
+      template:
+        src: templates/admin.json.j2
+        dest: "{{ wazuh_dir }}/api/configuration/admin.json"
+        owner: wazuh
+        group: wazuh
+        mode: 0644
+      no_log: true
+
     - name: Execute create_user script
       script:
         chdir: "{{ wazuh_dir }}/framework/scripts/"
@@ -267,6 +330,11 @@
         executable: "{{ wazuh_dir }}/framework/python/bin/python3"
       with_items:
         - "{{ wazuh_api_users }}"
+
+    - name: Delete create_user script
+      file:
+        path: "{{ wazuh_dir }}/framework/scripts/create_user.py"
+        state: absent
 
   tags:
     - config_api_users
@@ -310,4 +378,3 @@
 
 - name: Run uninstall tasks
   include_tasks: uninstall.yml
-  when: not wazuh_manager_sources_installation.enabled

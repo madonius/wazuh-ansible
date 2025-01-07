@@ -1,5 +1,5 @@
 ---
-wazuh_manager_version: 4.4.0-1
+wazuh_manager_version: 5.0.0
 
 wazuh_manager_fqdn: "wazuh-server"
 wazuh_manager_package_state: present
@@ -9,39 +9,7 @@ wazuh_custom_packages_installation_manager_enabled: false
 wazuh_custom_packages_installation_manager_deb_url: "https://s3-us-west-1.amazonaws.com/packages-dev.wazuh.com/"
 wazuh_custom_packages_installation_manager_rpm_url: "https://s3-us-west-1.amazonaws.com/packages-dev.wazuh.com/"
 
-# Sources installation
-wazuh_manager_sources_installation:
-  enabled: false
-  branch: "v4.4.0"
-  user_language: "en"
-  user_no_stop: "y"
-  user_install_type: "server"
-  user_dir: "/var/ossec"
-  user_delete_dir: null
-  user_enable_active_response: null
-  user_enable_syscheck: "y"
-  user_enable_rootcheck: "y"
-  user_enable_openscap: "n"
-  user_enable_authd: "y"
-  user_generate_authd_cert: null
-  user_update: "y"
-  user_binaryinstall: null
-  user_enable_email: "n"
-  user_auto_start: "y"
-  user_email_address: null
-  user_email_smpt: null
-  user_enable_syslog: "n"
-  user_white_list: "n"
-  user_ca_store: null
-  threads: "2"
-
 wazuh_dir: "/var/ossec"
-wazuh_manager_repo:
-  apt: 'deb https://packages.wazuh.com/4.x/apt/ stable main'
-  yum: 'https://packages.wazuh.com/4.x/yum/'
-  gpg: 'https://packages.wazuh.com/key/GPG-KEY-WAZUH'
-  key_id: '0DCFCA5547B19D2A6099506096B3EE5F29111145'
-
 
 ##########################################
 ### Wazuh-OSSEC
@@ -176,35 +144,22 @@ wazuh_manager_sca:
   time: ''
 
 ## Vulnerability Detector
-wazuh_manager_vulnerability_detector:
-  enabled: 'no'
-  interval: '5m'
-  ignore_time: '6h'
-  run_on_start: 'yes'
-  providers:
-    - enabled: 'no'
-      os:
-        - 'trusty'
-        - 'xenial'
-        - 'bionic'
-      update_interval: '1h'
-      name: '"canonical"'
-    - enabled: 'no'
-      os:
-        - 'wheezy'
-        - 'stretch'
-        - 'jessie'
-        - 'buster'
-      update_interval: '1h'
-      name: '"debian"'
-    - enabled: 'no'
-      update_from_year: '2010'
-      update_interval: '1h'
-      name: '"redhat"'
-    - enabled: 'no'
-      update_from_year: '2010'
-      update_interval: '1h'
-      name: '"nvd"'
+filebeat_node_name: node-1
+filebeat_output_indexer_hosts:
+  - "localhost"
+filebeat_output_indexer_port: 9200
+indexer_security_user: admin
+indexer_security_password: changeme
+filebeat_ssl_dir: /etc/pki/filebeat
+
+wazuh_manager_vulnerability_detection:
+  enabled: 'yes'
+  index_status: 'yes'
+  feed_update_interval: '60m'
+
+wazuh_manager_indexer:
+  enabled: 'yes'
+  hosts: "{{ filebeat_output_indexer_hosts }}"
 
 ## Syscheck
 wazuh_manager_syscheck:
@@ -387,7 +342,6 @@ wazuh_manager_api:
   https_cert: "api/configuration/ssl/server.crt"
   https_use_ca: False
   https_ca: "api/configuration/ssl/ca.crt"
-  https_ssl_cipher: "TLSv1.2"
   logging_level: "info"
   logging_path: "logs/api.log"
   cors: no
@@ -400,7 +354,6 @@ wazuh_manager_api:
   access_max_login_attempts: 5
   access_block_time: 300
   access_max_request_per_minute: 300
-  use_only_authd: no
   drop_privileges: yes
   experimental_features: no
   remote_commands_localfile: yes
@@ -422,7 +375,7 @@ wazuh_manager_config_overlay: true
 
 ## Other/Wrappers
 wazuh_manager_config_defaults:
-  repo: '{{ wazuh_manager_repo }}'
+  repo: '{{ wazuh_repo }}'
   json_output: '{{ wazuh_manager_json_output }}'
   alerts_log: '{{ wazuh_manager_alerts_log }}'
   logall: '{{ wazuh_manager_logall }}'
@@ -448,7 +401,8 @@ wazuh_manager_config_defaults:
   osquery: '{{ wazuh_manager_osquery }}'
   syscollector: '{{ wazuh_manager_syscollector }}'
   sca: '{{ wazuh_manager_sca }}'
-  vulnerability_detector: '{{ wazuh_manager_vulnerability_detector }}'
+  vulnerability_detection: '{{ wazuh_manager_vulnerability_detection }}'
+  indexer: '{{ wazuh_manager_indexer }}'
   log_level: '{{ wazuh_manager_log_level }}'
   email_level: '{{ wazuh_manager_email_level }}'
   localfiles: '{{ wazuh_manager_localfiles }}'
